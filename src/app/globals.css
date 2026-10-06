@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f9f6ee;
+  --surface: #ffffff;
+  --foreground: #1c2420;
+  --muted: #5f6b64;
+  --line: #e4ddcc;
+  --brand: #1e4f3b;
+  --brand-soft: #e3ede7;
+  --warn: #9a5b00;
+  --warn-soft: #fbefdc;
+  --danger: #a23a2c;
+  --danger-soft: #f8e3df;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #121614;
+    --surface: #1a201d;
+    --foreground: #e9ece9;
+    --muted: #9aa59f;
+    --line: #2c3530;
+    --brand: #7fc4a3;
+    --brand-soft: #1f3329;
+    --warn: #e4b062;
+    --warn-soft: #3a2d17;
+    --danger: #ef8a7c;
+    --danger-soft: #3d201c;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.field {
+  @apply w-full rounded-md border border-line bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-brand;
+}
+.btn {
+  @apply inline-flex items-center justify-center rounded-md bg-brand px-3 py-1.5 text-sm font-medium text-background hover:opacity-90;
+}
+.btn-ghost {
+  @apply inline-flex items-center justify-center rounded-md border border-line px-2.5 py-1 text-xs font-medium hover:bg-brand-soft;
+}
+.card {
+  @apply rounded-lg border border-line bg-surface;
+}
+.label {
+  @apply mb-1 block text-xs font-medium text-muted;
+}
