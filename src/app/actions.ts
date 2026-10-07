@@ -224,6 +224,104 @@ export async function logChase(formData: FormData) {
   refreshAll();
 }
 
+/* ---------- review queue ---------- */
+
+type Suggested = {
+  type?: string;
+  priority?: string;
+  waiting_on?: string | null;
+  due_date?: string | null;
+  chase_every_days?: number | null;
+  client?: { display_name: string; email?: string; kind?: string; status?: string };
+  task?: { type?: string; priority?: string };
+};
+
+async function decide(id: string, status: "accepted" | "rejected") {
+  const { supabase } = await requireUser();
+  await supabase.from("review_items").update({ status, decided_at: new Date().toISOString() }).eq("id", id);
+}
+
+/** Accept a suggestion: creates the task, client or contact it describes. */
+export async function acceptReview(formData: FormData) {
+  const { supabase } = await requireUser();
+  const id = str(formData, "id");
+  if (!id) return;
+  const { data: item } = await supabase.from("review_items").select("*").eq("id", id).maybeSingle();
+  if (!item || item.status !== "pending") return;
+  const s = (item.suggested ?? {}) as Suggested;
+  const asContactOf = str(formData, "client_id");
+  let clientId: string | null = item.client_id;
+
+  if (item.kind === "new_contact" && asContactOf) {
+    // Attach the person to an existing client and teach the sync their address.
+    await supabase.from("contacts").insert({
+      client_id: asContactOf,
+      name: s.client?.display_name ?? item.title,
+      email: s.client?.email ?? null,
+      source: "gmail",
+    });
+    clientId = asContactOf;
+  } else if ((item.kind === "new_client" || item.kind === "new_contact") && s.client) {
+    const { data: de } = await supabase.from("entities").select("id").eq("code", "DE").single();
+    const { data: created, error } = await supabase
+      .from("clients")
+      .insert({
+        display_name: str(formData, "display_name") ?? s.client.display_name,
+        kind: s.client.kind === "company" ? "company" : "person",
+        email: s.client.email ?? null,
+        status: s.client.status ?? "lead",
+        entity_id: de?.id ?? null,
+        source: "gmail",
+        tags: ["gmail", "review"],
+      })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    clientId = created.id;
+    if (s.client.email) {
+      await supabase.from("contacts").insert({ client_id: clientId, name: s.client.display_name, email: s.client.email, source: "gmail" });
+    }
+  }
+
+  const task = item.kind === "task" ? s : s.task;
+  if (task) {
+    const waiting = task === s ? s.waiting_on ?? null : null;
+    const chase = task === s ? s.chase_every_days ?? null : null;
+    await supabase.from("tasks").insert({
+      title: item.kind === "task" ? item.title : `Follow up: ${s.client?.display_name ?? item.title}`,
+      client_id: clientId,
+      type: task.type ?? "follow_up",
+      priority: task.priority ?? "normal",
+      due_date: (task === s ? s.due_date : null) ?? todayISO(),
+      status: waiting ? "waiting" : "open",
+      waiting_on: waiting,
+      chase_every_days: chase,
+      next_chase_date: waiting && chase ? addDaysISO(todayISO(), chase) : null,
+      notes: [item.detail, item.external_url].filter(Boolean).join("\n"),
+      source: "gmail",
+    });
+  }
+  await decide(id, "accepted");
+  refreshAll();
+}
+
+export async function rejectReview(formData: FormData) {
+  const id = str(formData, "id");
+  if (!id) return;
+  await decide(id, "rejected");
+  refreshAll();
+}
+
+/* ---------- Gmail sync ---------- */
+
+export async function syncNow() {
+  const { user } = await requireUser();
+  const { runSync } = await import("@/lib/gmail-sync");
+  const { after } = await import("next/server");
+  after(() => runSync(user.id));
+  redirect("/settings?sync=started");
+}
+
 /* ---------- activities ---------- */
 
 export async function addActivity(formData: FormData) {

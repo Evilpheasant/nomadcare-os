@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/auth"];
+// /api/gmail/sync is protected by its own secret (called by the scheduler, not a browser).
+const PUBLIC_PATHS = ["/login", "/auth", "/api/gmail/sync"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });

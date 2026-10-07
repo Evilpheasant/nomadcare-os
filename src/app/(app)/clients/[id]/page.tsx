@@ -13,14 +13,16 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
   const { supabase } = await requireUser();
   const { t, l, lang, lines } = await getT();
 
-  const [{ data: client }, { data: policies }, { data: tasks }, { data: activities }, { data: insurers }, { data: entities }] =
+  const [{ data: client }, { data: policies }, { data: tasks }, { data: activities }, { data: insurers }, { data: entities }, { data: documents }, { data: contacts }] =
     await Promise.all([
       supabase.from("clients").select("*, entities(code, name)").eq("id", id).maybeSingle(),
       supabase.from("policies").select("*, insurers(name)").eq("client_id", id).order("renewal_date", { ascending: true }),
       supabase.from("tasks").select(TASK_SELECT).eq("client_id", id).order("status").order("due_date"),
-      supabase.from("activities").select("id, kind, summary, body, occurred_at").eq("client_id", id).order("occurred_at", { ascending: false }).limit(100),
+      supabase.from("activities").select("id, kind, summary, body, occurred_at, external_url, insurers(name)").eq("client_id", id).order("occurred_at", { ascending: false }).limit(200),
       supabase.from("insurers").select("id, name").order("name"),
       supabase.from("entities").select("id, code, name").order("code"),
+      supabase.from("documents").select("id, filename, doc_type, doc_date, storage_path, external_url").eq("client_id", id).order("doc_date", { ascending: false }).limit(200),
+      supabase.from("contacts").select("id, name, role, email, phone").eq("client_id", id).order("name"),
     ]);
 
   if (!client) notFound();
@@ -108,7 +110,14 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
               {activities.map((a) => (
                 <li key={a.id} className="border-b border-line px-4 py-2.5 text-sm last:border-b-0">
                   <span className="mr-2 rounded bg-brand-soft px-1.5 py-0.5 text-[11px] text-brand">{l.activity[a.kind as keyof typeof l.activity]}</span>
-                  {a.summary}
+                  {a.external_url ? (
+                    <a className="hover:underline" href={a.external_url} target="_blank" rel="noreferrer">{a.summary} ↗</a>
+                  ) : (
+                    a.summary
+                  )}
+                  {(a.insurers as unknown as { name: string } | null)?.name && (
+                    <span className="ml-2 text-xs text-muted">· {(a.insurers as unknown as { name: string }).name}</span>
+                  )}
                   <span className="ml-2 text-xs text-muted">{fmtDate(a.occurred_at, lang)}</span>
                 </li>
               ))}
@@ -118,6 +127,40 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
           )}
         </section>
 
+        <div className="space-y-6">
+        <section className="card">
+          <h2 className="border-b border-line px-4 py-2.5 text-sm font-semibold">{lang === "de" ? "Dokumente" : "Documents"} ({documents?.length ?? 0})</h2>
+          {documents?.length ? (
+            <ul className="max-h-80 overflow-y-auto">
+              {documents.map((d) => (
+                <li key={d.id} className="border-b border-line px-4 py-2 text-sm last:border-b-0">
+                  <a className="hover:underline" href={`/api/documents/${d.id}`} target="_blank" rel="noreferrer">{d.filename}</a>
+                  <div className="text-xs text-muted">{d.doc_type} · {fmtDate(d.doc_date, lang)}</div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-4 py-3 text-sm text-muted">{t.nothingHere}</p>
+          )}
+        </section>
+        <section className="card">
+          <h2 className="border-b border-line px-4 py-2.5 text-sm font-semibold">{lang === "de" ? "Kontakte" : "Contacts"} ({contacts?.length ?? 0})</h2>
+          {contacts?.length ? (
+            <ul>
+              {contacts.map((k) => (
+                <li key={k.id} className="border-b border-line px-4 py-2 text-sm last:border-b-0">
+                  <div className="font-medium">{k.name}{k.role ? <span className="font-normal text-muted"> · {k.role}</span> : null}</div>
+                  <div className="text-xs text-muted">
+                    {k.email && <a className="hover:underline" href={`mailto:${k.email}`}>{k.email}</a>}
+                    {k.phone && <span> · {k.phone}</span>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-4 py-3 text-sm text-muted">{t.nothingHere}</p>
+          )}
+        </section>
         <section className="card">
           <h2 className="border-b border-line px-4 py-2.5 text-sm font-semibold">{t.notes}</h2>
           <form action={updateClientNotes} className="space-y-2 p-4">
@@ -126,6 +169,7 @@ export default async function ClientPage({ params }: PageProps<"/clients/[id]">)
             <button className="btn">{t.save}</button>
           </form>
         </section>
+        </div>
       </div>
     </div>
   );

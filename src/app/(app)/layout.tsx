@@ -4,14 +4,17 @@ import { requireUser } from "@/lib/auth";
 import { getT } from "@/lib/i18n";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
-  await requireUser();
+  const { supabase } = await requireUser();
   const { t, lang } = await getT();
+  const { count: pending } = await supabase.from("review_items").select("id", { count: "exact", head: true }).eq("status", "pending");
   const nav = [
     { href: "/", label: t.dashboard },
+    { href: "/review", label: `${lang === "de" ? "Prüfen" : "Review"}${pending ? ` (${pending})` : ""}` },
     { href: "/tasks", label: t.tasks },
     { href: "/clients", label: t.clients },
     { href: "/policies", label: t.policies },
     { href: "/insurers", label: t.insurers },
+    { href: "/settings", label: lang === "de" ? "Einstellungen" : "Settings" },
   ];
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
